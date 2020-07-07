@@ -89,9 +89,17 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
-
-void
-sys_getallP(void)
+int 
+sys_waitx(void)
 {
-  return getallP();
+  int *wtime;
+  int *rtime;
+  
+  if(argptr(0, (char**)&wtime, sizeof(int)) < 0)
+    return -1;
+
+  if(argptr(1, (char**)&rtime, sizeof(int)) < 0)
+    return -1;
+
+  return waitx(wtime, rtime);
 }
