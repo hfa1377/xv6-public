@@ -111,7 +111,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  p->priority = 60;
   return p;
 }
 
@@ -323,6 +323,8 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *temp;
+
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -331,11 +333,27 @@ scheduler(void)
     sti();
 
     // Loop over process table looking for process to run.
+    struct proc *HP = 0; // highest priority.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      
+      HP = p;
+      for (temp = ptable.proc; temp < &ptable.proc[NPROC]; temp++)
+      {
+        if (temp->state != RUNNABLE){
+          continue;
+        }
+        if (HP->priority > temp->priority){
+          HP = temp;
+        }
+        // else if(HP->priority == temp->priority && HP->pid > temp->pid){
+          // HP = temp;
+          // cprintf("HP->pid:%d , temp->pid:%d\n", HP->pid, temp->pid);
+        // }
+      }
+      p = HP;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -532,39 +550,50 @@ procdump(void)
     cprintf("\n");
   }
 }
-
-// struct proc_info*
-void 
-getallP(void)
+int
+pstatus(void)
 {
-  static struct proc_info allproc[NPROC];
-  struct proc *ptr = ptable.proc;
-  for(int i =0; ptr < &ptable.proc[NPROC];i++  ,ptr++) {
-    if((ptr->state == RUNNABLE || ptr->state == RUNNING)) {
-      allproc[i].pid = ptr->pid;
-      allproc[i].memsize = ptr->sz;
+  struct proc *p;
+  acquire(&ptable.lock);
+  cprintf("name \t\t pid \t\t state \t\t priority\n");
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (p->state == SLEEPING){
+      cprintf("%s \t\t %d \t\t SLEEPING \t\t %d\n", p->name, p->pid, p->priority);
     }
+    else if (p->state == RUNNABLE){
+      cprintf("%s \t\t %d \t\t RUNNABLE \t\t %d\n", p->name, p->pid, p->priority);
+    }
+    else if (p->state == EMBRYO){
+      cprintf("%s \t\t %d \t\t EMBRYO \t\t %d\n", p->name, p->pid, p->priority);
+    }
+    else if (p->state == RUNNING){
+      cprintf("%s \t\t %d \t\t RUNNING \t\t %d\n", p->name, p->pid, p->priority);
+    }
+  }
+  release(&ptable.lock);
+  return 0;
+}
 
-    i++;
+int 
+set_priority(int value){
+  if (value <= 10 || value > 100){
+    return -1;
   }
-  struct proc_info temp;
-  for (int i = 0; i < NPROC - 1; i++)
+  struct proc *p;
+  int old_priority = -1;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    for (int j = 0; j < NPROC - i - 1; j++)
-    {
-      if(allproc[j].memsize > allproc[j+1].memsize){
-        temp = allproc[j];
-        allproc[j] = allproc[j+1];
-        allproc[j+1] = temp;
-      }
+    if(p->state != RUNNING){
+      continue;
+    }
+    if (p->priority != 10){
+      // cprintf("pid=%d ,state=%s, prio=%d\n", p->pid, p->state, p->priority);
+      old_priority = p->priority;
+      p->priority = value;
+      break;
     }
   }
-  for(int i = 0; i< NPROC; i++)
-  {
-
-    if(allproc[i].pid != 0 && allproc[i].memsize != 0){
-      cprintf("pid: %d, size: %d \n",allproc[i].pid, allproc[i].memsize);
-    }
-  }
-  cprintf("forked\n");
+  release(&ptable.lock);
+  return old_priority;
 }
