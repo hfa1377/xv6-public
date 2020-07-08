@@ -90,8 +90,18 @@ sys_uptime(void)
   return xticks;
 }
 
-void
-sys_getallP(void)
+int
+sys_pstatus(void)
 {
-  return getallP();
+  return pstatus();
+}
+
+int 
+sys_set_priority(void)
+{
+  int value;
+  if (argint(0, &value) < 0){
+    return -1;
+  }
+  return set_priority(value);
 }
